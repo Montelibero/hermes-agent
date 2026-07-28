@@ -56,4 +56,3 @@ it starts the image as a non-existent numeric UID/GID with a read-only rootfs,
 all capabilities dropped, and privilege escalation disabled. The check
 asserts the runtime identity, immutable application tree, writable mounted
 paths, absence of `/init`, and successful Hermes CLI startup.
-

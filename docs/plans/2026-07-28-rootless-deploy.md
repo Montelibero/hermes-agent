@@ -136,4 +136,3 @@ Push overlay branches normally. Update `deploy` with an explicit
 `--force-with-lease`, wait for the fork Docker workflow to finish, and verify
 that GHCR `latest` and the immutable `sha-<deploy SHA>` tag point to the new
 rootless image.
-
