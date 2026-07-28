@@ -1,8 +1,8 @@
 # Hermes Agent: эксплуатация fork-образа
 
 Эта памятка относится к сборке ветки `deploy` форка
-`Montelibero/hermes-agent`. Базовая версия при создании памятки —
-стабильный релиз `v2026.7.20` (`v0.19.0`).
+`Montelibero/hermes-agent`. Текущая базовая версия —
+стабильный релиз `v2026.8.16` (`v0.20.2`).
 
 Канонические файлы контейнера находятся в самом проекте:
 
@@ -28,7 +28,8 @@ ghcr.io/montelibero/hermes-agent:sha-<commit>
 Локальная сборка:
 
 ```bash
-docker build --platform linux/amd64 -t hermes-agent:local .
+docker build --platform linux/amd64 --target deploy-rootless \
+  -t hermes-agent:local .
 ```
 
 Скрипт `build.sh` обновляет текущую ветку только через fast-forward и собирает
@@ -70,27 +71,41 @@ terminal:
 
 ## UID и GID
 
-Контейнер запускает `/init` из s6-overlay и сам понижает привилегии до
-пользователя `hermes`. Не задавайте Docker-параметр `user`.
+Fork-образ из ветки `deploy` использует target `deploy-rootless`. Он не
+запускает s6-overlay, не получает root и не меняет владельцев bind mounts.
+Укажите числовой UID и GID, разрешённые на конкретном сервере:
 
-Чтобы файлы в bind mount принадлежали пользователю хоста, передайте буквальные
-значения:
-
-```text
-HERMES_UID=1000
-HERMES_GID=1000
+```yaml
+user: "1000:1000"
 ```
 
-Для NAS также поддерживаются `PUID` и `PGID`, но `HERMES_UID` и `HERMES_GID`
-имеют приоритет. Значения должны совпадать с владельцем серверного каталога
-данных.
+На другом сервере значения могут отличаться без пересборки образа. Каталоги,
+подключаемые к `/opt/data` и рабочей директории, должны быть заранее доступны
+этому UID/GID на запись.
+
+Не задавайте `HERMES_UID`, `HERMES_GID`, `PUID` или `PGID`: rootless-образ не
+меняет свою учётную запись во время запуска.
+
+Рекомендуемые ограничения контейнера:
+
+```yaml
+read_only: true
+cap_drop:
+  - ALL
+security_opt:
+  - no-new-privileges:true
+tmpfs:
+  - /tmp:rw,noexec,nosuid,nodev,size=134217728,mode=1777
+```
+
+Не подключайте отдельный `/run`: rootless target его не использует.
 
 ## Команды контейнера
 
 Не переопределяйте entrypoint. Образ использует:
 
 ```text
-/init /opt/hermes/docker/main-wrapper.sh
+/usr/local/bin/tini -- /opt/hermes/docker/rootless-entrypoint.sh
 ```
 
 Аргументы контейнера передаются CLI Hermes:
@@ -106,14 +121,14 @@ docker run --rm hermes-agent:local --help
 gateway run
 ```
 
-Для dashboard:
+Для dashboard как единственного основного процесса контейнера:
 
 ```text
 dashboard --host 127.0.0.1 --no-open
 ```
 
-При `docker exec` вызывайте `hermes` обычным способом. Встроенный shim сам
-понизит привилегии, чтобы новые файлы в `/opt/data` не стали root-owned:
+При `docker exec` вызывайте `hermes` обычным способом. Команда выполняется под
+тем же UID/GID, который задан контейнеру:
 
 ```bash
 docker exec hermes hermes --version

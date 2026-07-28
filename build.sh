@@ -2,4 +2,4 @@
 set -euo pipefail
 
 git pull --ff-only
-docker build --platform linux/amd64 -t hermes-agent:local .
+docker build --platform linux/amd64 --target deploy-rootless -t hermes-agent:local .
