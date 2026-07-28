@@ -31,7 +31,7 @@ git config rerere.enabled true
 Run:
 
 ```bash
-test "$(git rev-parse main)" = "$(git rev-parse v2026.7.20)"
+test "$(git rev-parse main)" = "$(git rev-parse v2026.7.20^{commit})"
 git show-ref --verify --quiet refs/heads/local/docker
 git show-ref --verify --quiet refs/heads/local/ci-deploy
 git show-ref --verify --quiet refs/heads/local/meta
@@ -244,7 +244,7 @@ git merge --no-ff local/meta -m "deploy: include local/meta"
 Run:
 
 ```bash
-test "$(git rev-parse main)" = "$(git rev-parse v2026.7.20)"
+test "$(git rev-parse main)" = "$(git rev-parse v2026.7.20^{commit})"
 for branch in local/docker local/ci-deploy local/meta; do
   test "$(git merge-base main "$branch")" = "$(git rev-parse main)"
   git merge-base --is-ancestor "$branch" deploy
