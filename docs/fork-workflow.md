@@ -90,7 +90,7 @@ git merge --no-ff local/meta -m "deploy: include local/meta"
 ## Verify locally
 
 ```bash
-test "$(git rev-parse main)" = "$(git rev-parse "$release_tag")"
+test "$(git rev-parse main)" = "$(git rev-parse "$release_tag^{commit}")"
 
 for branch in local/docker local/ci-deploy local/meta; do
   test "$(git merge-base main "$branch")" = "$(git rev-parse main)"
