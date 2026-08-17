@@ -49,7 +49,7 @@ FROM ghcr.io/astral-sh/uv:0.11.6-python3.13-trixie@sha256:b3c543b6c4f23a5f2df228
 # 2.41) runtime.  Bumping to a new Node major is a one-line ARG change; see
 # #4977.
 FROM node:26-bookworm-slim@sha256:9e6f9357d371591e32ab6f2d8a26d63bdd0d17c29eee3f4f3e7e454d9634bf73 AS node_source
-FROM debian:13.4
+FROM debian:13.4 AS upstream-runtime
 
 # Disable Python stdout buffering to ensure logs are printed immediately.
 # Do not write .pyc files at runtime: /opt/hermes is immutable in the
@@ -70,8 +70,12 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
 # hermes process, the dashboard, and per-profile gateways.
 RUN apt-get -o Acquire::Retries=3 update && \
     apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
-    ca-certificates curl iputils-ping python3 python-is-python3 ripgrep ffmpeg gcc g++ make cmake python3-dev python3-venv libffi-dev libolm-dev libatomic1 procps git openssh-client docker-cli xz-utils && \
+        ca-certificates curl iputils-ping python3 python-is-python3 ripgrep ffmpeg gcc g++ make cmake python3-dev python3-venv libffi-dev libolm-dev libatomic1 procps git openssh-client docker-cli xz-utils tini && \
     rm -rf /var/lib/apt/lists/*
+
+# Preserve Debian's real, non-setuid tini binary before the upstream
+# compatibility shim replaces /usr/bin/tini.
+RUN cp /usr/bin/tini /usr/local/bin/tini
 
 # Prefer the fixed SQLite over Debian's vulnerable libsqlite3.so.0. Keep the
 # public library name stable so both the system interpreter and the uv-created
@@ -455,3 +459,39 @@ VOLUME [ "/opt/data" ]
 # intercepted by /init's POSIX shell.
 ENTRYPOINT [ "/opt/hermes/docker/entrypoint-dispatch.sh" ]
 CMD [ ]
+
+# Fork deployment target for hosts that require an arbitrary non-root runtime
+# identity, a read-only root filesystem, no capabilities, and
+# no-new-privileges. The upstream target above remains unchanged.
+FROM upstream-runtime AS deploy-rootless
+
+USER root
+RUN rm -rf \
+        /init \
+        /package \
+        /command \
+        /etc/cont-init.d \
+        /etc/s6-overlay \
+        /etc/s6-rc \
+        /etc/s6-rc.d \
+        /usr/bin/tini && \
+    mkdir -p /workspace && \
+    chmod 0555 /workspace && \
+    find / -xdev -type f \( -perm /4000 -o -perm /2000 \) \
+        -exec chmod a-s {} + && \
+    test -x /usr/local/bin/tini
+
+COPY --chmod=0755 docker/rootless-entrypoint.sh /opt/hermes/docker/rootless-entrypoint.sh
+
+ENV HOME=/opt/data
+
+# A deployment may override this with any numeric UID:GID. The image never
+# remaps identities or changes bind-mount ownership at runtime.
+USER hermes
+
+ENTRYPOINT [ "/usr/local/bin/tini", "--", "/opt/hermes/docker/rootless-entrypoint.sh" ]
+CMD [ ]
+
+# Keep a plain `docker build .` equivalent to the stable upstream image.
+# Fork publishing selects deploy-rootless explicitly.
+FROM upstream-runtime AS upstream-default
