@@ -29,7 +29,7 @@ gh release view --repo NousResearch/hermes-agent \
 Inspect the release notes and record the selected tag:
 
 ```bash
-release_tag=v2026.7.20
+release_tag=v2026.8.16
 git merge-base --is-ancestor main "$release_tag"
 
 tag_object="$(git rev-parse "$release_tag^{tag}")"
@@ -107,8 +107,12 @@ test -z "$(git status --short)"
 Build and smoke-test the assembled image:
 
 ```bash
-docker build --platform linux/amd64 -t hermes-agent:overlay-test .
-docker run --rm hermes-agent:overlay-test --version
+deploy_sha="$(git rev-parse deploy)"
+docker build --platform linux/amd64 \
+  --target deploy-rootless \
+  --build-arg "HERMES_GIT_SHA=$deploy_sha" \
+  -t hermes-agent:overlay-test .
+scripts/verify_rootless_image.sh hermes-agent:overlay-test
 ```
 
 ## Publish safely

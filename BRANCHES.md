@@ -1,6 +1,6 @@
 # Active fork branches
 
-Stable base: `main` = upstream release `v2026.7.20` (`v0.19.0`).
+Stable base: `main` = upstream release `v2026.8.16` (`v0.20.2`).
 
 | Branch | Type | Purpose | Upstream PR |
 |---|---|---|---|
