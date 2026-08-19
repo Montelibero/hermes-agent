@@ -170,6 +170,37 @@ class TestSnapshotEndToEnd:
         assert "PROBE=probe-ok" in output
         assert "/opt/shell-init-probe/bin" in output
 
+    def test_login_snapshot_preserves_hermes_console_script(self, tmp_path):
+        """A profile PATH reset must not hide the running Hermes install."""
+        from tools.environments import local as local_mod
+
+        hermes_bin = tmp_path / "hermes-bin"
+        hermes_bin.mkdir()
+        hermes = hermes_bin / "hermes"
+        hermes.write_text("#!/bin/sh\necho hermes-console-script-ok\n")
+        hermes.chmod(0o755)
+
+        reset_path = tmp_path / "reset-path.sh"
+        reset_path.write_text('export PATH="/usr/local/bin:/usr/bin:/bin"\n')
+
+        previous = local_mod._HERMES_BIN_DIR
+        local_mod._HERMES_BIN_DIR = str(hermes_bin)
+        try:
+            with patch(
+                "tools.environments.local._read_terminal_shell_init_config",
+                return_value=([str(reset_path)], False),
+            ):
+                env = LocalEnvironment(cwd=str(tmp_path), timeout=15)
+                try:
+                    result = env.execute("hermes")
+                finally:
+                    env.cleanup()
+        finally:
+            local_mod._HERMES_BIN_DIR = previous
+
+        assert result["returncode"] == 0
+        assert "hermes-console-script-ok" in result.get("output", "")
+
     def test_profile_path_export_survives_bashrc_interactive_guard(
         self, tmp_path, monkeypatch
     ):

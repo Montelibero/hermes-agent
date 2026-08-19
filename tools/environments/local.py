@@ -1494,6 +1494,24 @@ class LocalEnvironment(BaseEnvironment):
         # Non-login invocations are already sourcing the snapshot and
         # don't need this.
         if login:
+            # A login profile is allowed to replace PATH completely.  That can
+            # discard the Hermes console-script directory which _make_run_env
+            # deliberately injected before bash started.  Restore only that
+            # required directory after every profile/init file has run, so the
+            # snapshot used by later terminal calls keeps bare `hermes`
+            # reachable without overwriting the user's PATH additions.
+            hermes_bin_dir = _resolve_hermes_bin_dir()
+            if hermes_bin_dir:
+                quoted_bin_dir = _quote_bash_path(hermes_bin_dir)
+                cmd_string = (
+                    f"__hermes_bin_dir={quoted_bin_dir}\n"
+                    'case ":${PATH:-}:" in\n'
+                    '  *":${__hermes_bin_dir}:"*) ;;\n'
+                    '  *) export PATH="${__hermes_bin_dir}${PATH:+:$PATH}" ;;\n'
+                    'esac\n'
+                    'unset __hermes_bin_dir\n'
+                    f"{cmd_string}"
+                )
             init_files = _resolve_shell_init_files()
             if init_files:
                 cmd_string = _prepend_shell_init(cmd_string, init_files)
