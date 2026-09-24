@@ -522,6 +522,16 @@ CMD [ ]
 FROM upstream-runtime AS deploy-rootless
 
 USER root
+# Fork add-on: billion-context (ACP context compression). The `bili` CLI plus
+# the global dist its native hermes plugin spawns. Exact-pinned: the runtime
+# tree is immutable, so the package's self-updater is disabled below and new
+# versions arrive only with a rebuilt image. The rootless entrypoint installs
+# and enables the hermes side on every boot (HERMES_BILLION_CONTEXT=0 opts
+# out).
+RUN npm install -g --no-audit --no-fund billion-context@0.1.147 && \
+    npm cache clean --force && \
+    test -x /usr/local/bin/bili
+
 RUN rm -rf \
         /init \
         /package \
@@ -539,6 +549,9 @@ RUN rm -rf \
 
 COPY --chmod=0755 docker/rootless-entrypoint.sh /opt/hermes/docker/rootless-entrypoint.sh
 
+# Read-only rootfs: the billion-context self-updater cannot (and must not)
+# rewrite the immutable install — updates ship with the image.
+ENV ACP_AUTO_UPDATE=0
 ENV HOME=/opt/data
 
 # A deployment may override this with any numeric UID:GID. The image never

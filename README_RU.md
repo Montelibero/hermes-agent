@@ -146,6 +146,37 @@ docker exec hermes hermes logs --level warning
 `docker-compose.yml` привязывает его к `127.0.0.1`; для удалённого доступа
 используйте SSH-туннель или reverse proxy с обязательной аутентификацией.
 
+## Сжатие контекста billion-context
+
+В образ запечён [billion-context](https://github.com/ranxianglei/billion-context)
+(ACP-прокси сжатия контекста, пакет `billion-context@0.1.147`, команда `bili`).
+При каждом старте контейнера rootless-entrypoint устанавливает и включает
+нативный Hermes-плагин (`/opt/data/plugins/billion-context/`) — тем же
+механизмом, что и ручная команда:
+
+```bash
+bili plugin install hermes        # установить + включить (идемпотентно)
+hermes plugins disable billion-context   # выключить в config.yaml
+bili plugin remove hermes         # полностью удалить файлы плагина
+```
+
+Плагин сам поднимает loopback-прокси на эфемерном порту (parent-pid
+watchdog гасит его вместе с Hermes), направляет трафик моделей через
+`HTTPS_PROXY` + `HERMES_CA_BUNDLE`, регистрирует инструменты
+`compress` / `decompress` / `acp_status`. Если прокси не смог подняться,
+плагин молча отходит в сторону — трафик идёт напрямую, без сжатия.
+
+Управление:
+
+- Выключить на уровне контейнера: `HERMES_BILLION_CONTEXT=0` — entrypoint
+  вообще не ставит плагин.
+- Выключить только рантайм-часть (файлы остаются): `BILI_NATIVE_HERMES=0`.
+- Версия зафиксирована в Dockerfile; самообновление пакета отключено
+  (`ACP_AUTO_UPDATE=0`), новая версия приезжает только с новым образом.
+
+Для уже работающих инстансов ничего вручную делать не нужно: после
+обновления образа и пересоздания контейнера entrypoint включит плагин сам.
+
 ## Несколько инстансов и профили
 
 Есть две разные схемы:

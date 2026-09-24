@@ -131,3 +131,26 @@ def test_rootless_entrypoint_prefers_headless_browser_shell() -> None:
     headless = script.index("-name 'chrome-headless-shell'")
     full = script.index("-name chromium-browser")
     assert headless < full
+
+
+def test_rootless_target_bakes_billion_context() -> None:
+    """The compression proxy ships in the fork target, exactly pinned.
+
+    The runtime tree is immutable, so the package's self-updater is disabled
+    in the stage and a new version only arrives with a rebuilt image.
+    """
+    stage = _rootless_stage()
+    assert "billion-context@0.1.147" in stage
+    assert "test -x /usr/local/bin/bili" in stage
+    assert "ACP_AUTO_UPDATE=0" in stage
+
+
+def test_rootless_entrypoint_enables_billion_context_plugin() -> None:
+    """The entrypoint installs+enables the native hermes plugin each boot,
+    gated by an opt-out env; the gate must precede the install."""
+    script = ENTRYPOINT.read_text(encoding="utf-8")
+    gate = '[ "${HERMES_BILLION_CONTEXT:-1}" = "1" ]'
+    install = "bili plugin install hermes"
+    assert gate in script
+    assert install in script
+    assert script.index(gate) < script.index(install)

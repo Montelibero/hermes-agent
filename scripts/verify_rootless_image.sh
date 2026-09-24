@@ -30,5 +30,8 @@ docker run --rm \
     test -z "$(find / -xdev -type f \( -perm /4000 -o -perm /2000 \) -print -quit 2>/dev/null)"
     test "$(node --version | cut -d. -f1)" = "v26"
     python -c "import sqlite3, sys; sys.exit(0 if sqlite3.sqlite_version_info >= (3, 51, 3) else 1)"
+    bili --version
+    test -f /opt/data/plugins/billion-context/plugin.yaml
+    grep -q 'billion-context' /opt/data/config.yaml
     hermes --version
   '

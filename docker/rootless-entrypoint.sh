@@ -239,6 +239,18 @@ if [ -d "$INSTALL_DIR/skills" ]; then
         || printf '%s\n' "[rootless] WARNING: bundled skill sync failed; continuing" >&2
 fi
 
+# Billion-context ACP compression: keep the native hermes plugin installed
+# and enabled. Idempotent — re-copies the plugin files plus sidecar (tracking
+# the dist baked into this image) and re-runs the enable through hermes' own
+# channel; the installer resolves HERMES_HOME exactly like this bootstrap.
+# The plugin spawns its own loopback proxy with a parent-pid watchdog and
+# stands down silently (direct traffic) when it cannot start. Opt out with
+# HERMES_BILLION_CONTEXT=0 in the container environment.
+if [ "${HERMES_BILLION_CONTEXT:-1}" = "1" ] && command -v bili >/dev/null 2>&1; then
+    bili plugin install hermes \
+        || printf '%s\n' "[rootless] WARNING: billion-context plugin setup failed; continuing without compression" >&2
+fi
+
 if [ -z "${AGENT_BROWSER_EXECUTABLE_PATH:-}" ] && \
         [ -d "${PLAYWRIGHT_BROWSERS_PATH:-}" ]; then
     # Two ordered finds, matching the upstream stage2 hook: the headless
