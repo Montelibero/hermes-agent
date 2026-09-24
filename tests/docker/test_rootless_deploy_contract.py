@@ -81,10 +81,53 @@ def test_rootless_entrypoint_validates_and_bootstraps_writable_state() -> None:
     assert 'exec "$@"' in script
 
 
-def test_rootless_entrypoint_preserves_v0202_first_boot_contracts() -> None:
+def test_rootless_entrypoint_preserves_upstream_first_boot_contracts() -> None:
     script = ENTRYPOINT.read_text(encoding="utf-8")
     assert "HERMES_SKIP_CONFIG_MIGRATION" in script
     assert "API_SERVER_KEY" in script
     assert "HERMES_AUTH_JSON_BOOTSTRAP" in script
     assert "docker_rebootstrap_nous_session.py" in script
     assert "refusing auth bootstrap through symlink" in script
+
+
+def test_rootless_entrypoint_respects_operator_api_server_key() -> None:
+    """A container-env API_SERVER_KEY must win over key generation.
+
+    $HERMES_HOME/.env is loaded with override=True at runtime, so a key
+    generated while the operator supplied one through the environment
+    would shadow their credential and 401 every client using it.
+    """
+    script = ENTRYPOINT.read_text(encoding="utf-8")
+    guard = '[ -n "${API_SERVER_KEY:-}" ]'
+    generation = "generated_key=$(head -c 32 /dev/urandom"
+    assert guard in script
+    assert generation in script
+    assert script.index(guard) < script.index(generation)
+
+
+def test_rootless_entrypoint_seeds_xdg_runtime_dir() -> None:
+    script = ENTRYPOINT.read_text(encoding="utf-8")
+    assert 'XDG_RUNTIME_DIR' in script
+    assert 'chmod 0700 "$XDG_RUNTIME_DIR"' in script
+
+
+def test_rootless_entrypoint_supports_gateway_state_bootstrap() -> None:
+    script = ENTRYPOINT.read_text(encoding="utf-8")
+    assert "HERMES_GATEWAY_BOOTSTRAP_STATE" in script
+    assert "gateway_state.json" in script
+    assert '"gateway_state":"running"' in script
+
+
+def test_rootless_entrypoint_syncs_nous_routing_overrides() -> None:
+    script = ENTRYPOINT.read_text(encoding="utf-8")
+    assert "HERMES_PORTAL_BASE_URL" in script
+    assert "NOUS_PORTAL_BASE_URL" in script
+    assert "NOUS_INFERENCE_BASE_URL" in script
+    assert "sync_routing_overrides" in script
+
+
+def test_rootless_entrypoint_prefers_headless_browser_shell() -> None:
+    script = ENTRYPOINT.read_text(encoding="utf-8")
+    headless = script.index("-name 'chrome-headless-shell'")
+    full = script.index("-name chromium-browser")
+    assert headless < full
