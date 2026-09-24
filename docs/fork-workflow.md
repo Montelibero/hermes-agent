@@ -29,7 +29,7 @@ gh release view --repo NousResearch/hermes-agent \
 Inspect the release notes and record the selected tag:
 
 ```bash
-release_tag=v2026.8.16
+release_tag=v2026.9.24
 git merge-base --is-ancestor main "$release_tag"
 
 tag_object="$(git rev-parse "$release_tag^{tag}")"
